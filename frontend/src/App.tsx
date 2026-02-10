@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { AppBar, Box, Button, Container, CssBaseline, Toolbar, Typography } from '@mui/material'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
+import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import Register from './pages/Register'
@@ -204,6 +205,9 @@ function App() {
               <Button component={RouterLink} to="/" color="inherit">
                 Home
               </Button>
+              <Button component={RouterLink} to="/dashboard" color="inherit">
+                Dashboard
+              </Button>
               <Button component={RouterLink} to="/profile" color="inherit">
                 Profile
               </Button>
@@ -221,6 +225,7 @@ function App() {
 
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />

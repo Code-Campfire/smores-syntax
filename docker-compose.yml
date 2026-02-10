@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
@@ -44,7 +42,7 @@ services:
     volumes:
       - ./backend:/app
     env_file:
-      - .env
+      - backend/.env
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +60,7 @@ services:
     volumes:
       - ./backend:/app
     env_file:
-      - .env
+      - backend/.env
     depends_on:
       redis:
         condition: service_healthy

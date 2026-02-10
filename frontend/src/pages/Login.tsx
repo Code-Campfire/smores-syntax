@@ -55,7 +55,7 @@ function Login() {
       } catch {
         // ignore theme sync failures
       }
-      navigate('/profile')
+      navigate('/dashboard')
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : 'Unknown error.')
     } finally {
