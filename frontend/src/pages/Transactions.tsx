@@ -26,7 +26,7 @@ import {
   TextField,
   Typography
 } from '@mui/material'
-import { Edit, Delete } from '@mui/icons-material'
+import { Edit, Delete, Add } from '@mui/icons-material'
 import { Controller, useForm } from 'react-hook-form'
 
 type Transaction = {
@@ -37,6 +37,7 @@ type Transaction = {
   category_id: number
   transaction_type: 'income' | 'expense'
   user_id: number
+  goal_id: number | null
 }
 
 type TransactionFormValues = {
@@ -44,6 +45,13 @@ type TransactionFormValues = {
   transaction_date: string
   description: string
   category_id: number
+  goal_id: number
+}
+
+type Goal = {
+  id: number
+  name: string
+  status: string
 }
 
 type Category = {
@@ -60,6 +68,7 @@ const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 function Transactions() {
   const [token] = useState(() => localStorage.getItem('access_token') || '')
   const [categories, setCategories] = useState<Category[]>([])
+  const [goals, setGoals] = useState<Goal[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(false)
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
@@ -79,6 +88,13 @@ function Transactions() {
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
 
+  const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false)
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+
+  const { register: registerCat, handleSubmit: handleSubmitCat, reset: resetCat, control: controlCat } = useForm<{ name: string; type: string }>({
+    defaultValues: { name: '', type: 'expense' },
+  })
+
   const [suggestion, setSuggestion] = useState<{
     category_id: number
     category_name: string
@@ -97,7 +113,8 @@ function Transactions() {
       amount: 0,
       transaction_date: new Date().toISOString().slice(0, 10),
       description: '',
-      category_id: 0
+      category_id: 0,
+      goal_id: 0
     }
   })
 
@@ -216,9 +233,49 @@ function Transactions() {
       }
     }
 
+    const loadGoals = async () => {
+      if (!token) return
+      try {
+        const response = await fetch(`${apiUrl}/api/v1/goals/?status=active`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = (await response.json()) as Goal[]
+          setGoals(data)
+        }
+      } catch {
+        // non-critical — goals dropdown is optional
+      }
+    }
+
     loadCategories()
+    loadGoals()
     loadTransactions()
   }, [token, loadTransactions])
+
+  const handleCreateCategory = async (values: { name: string; type: string }) => {
+    setIsCreatingCategory(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/categories/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: values.name, type: values.type }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.detail || 'Failed to create category.')
+      }
+      const created = (await res.json()) as Category
+      setCategories((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      setValue('category_id', created.id)
+      resetCat()
+      setNewCategoryDialogOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create category.')
+    } finally {
+      setIsCreatingCategory(false)
+    }
+  }
 
   const handleDescriptionChange = (value: string) => {
     if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current)
@@ -380,7 +437,8 @@ function Transactions() {
           transaction_date: values.transaction_date,
           description: values.description || null,
           category_id: values.category_id,
-          transaction_type: category.type
+          transaction_type: category.type,
+          goal_id: values.goal_id || null
         })
       })
 
@@ -415,7 +473,8 @@ function Transactions() {
         amount: 0,
         transaction_date: new Date().toISOString().slice(0, 10),
         description: '',
-        category_id: 0
+        category_id: 0,
+        goal_id: 0
       })
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : 'Unknown error.')
@@ -430,6 +489,7 @@ function Transactions() {
     setValue('transaction_date', transaction.transaction_date)
     setValue('description', transaction.description || '')
     setValue('category_id', transaction.category_id)
+    setValue('goal_id', transaction.goal_id ?? 0)
     setEditDialogOpen(true)
   }
 
@@ -465,7 +525,8 @@ function Transactions() {
           transaction_date: values.transaction_date,
           description: values.description || null,
           category_id: values.category_id,
-          transaction_type: category.type
+          transaction_type: category.type,
+          goal_id: values.goal_id || null
         })
       })
 
@@ -483,7 +544,8 @@ function Transactions() {
         amount: 0,
         transaction_date: new Date().toISOString().slice(0, 10),
         description: '',
-        category_id: 0
+        category_id: 0,
+        goal_id: 0
       })
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : 'Unknown error.')
@@ -790,29 +852,38 @@ function Transactions() {
               disabled={isSubmitting}
             />
 
-            <FormControl>
-              <InputLabel id="category-label">Category</InputLabel>
-              <Controller
-                name="category_id"
-                control={control}
-                rules={{ required: true, min: 1 }}
-                render={({ field }) => (
-                  <Select
-                    labelId="category-label"
-                    label="Category"
-                    {...field}
-                    disabled={isSubmitting || isLoadingCategories}
-                  >
-                    <MenuItem value={0}>Select a category</MenuItem>
-                    {categories.map((category) => (
-                      <MenuItem key={category.id} value={category.id}>
-                        {category.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-              />
-            </FormControl>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <FormControl sx={{ flex: 1 }}>
+                <InputLabel id="category-label">Category</InputLabel>
+                <Controller
+                  name="category_id"
+                  control={control}
+                  rules={{ required: true, min: 1 }}
+                  render={({ field }) => (
+                    <Select
+                      labelId="category-label"
+                      label="Category"
+                      {...field}
+                      disabled={isSubmitting || isLoadingCategories}
+                    >
+                      <MenuItem value={0}>Select a category</MenuItem>
+                      {categories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+              </FormControl>
+              <IconButton
+                title="Add new category"
+                onClick={() => { resetCat(); setNewCategoryDialogOpen(true) }}
+                sx={{ mt: 1 }}
+              >
+                <Add />
+              </IconButton>
+            </Box>
 
             {suggestionLoading && (
               <Typography variant="caption" color="text.secondary">
@@ -831,6 +902,31 @@ function Transactions() {
               <Typography variant="body2" color="text.secondary">
                 Transaction type inferred from category: {selectedCategory.type}
               </Typography>
+            )}
+
+            {goals.length > 0 && (
+              <FormControl>
+                <InputLabel id="goal-label">Link to Goal (optional)</InputLabel>
+                <Controller
+                  name="goal_id"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      labelId="goal-label"
+                      label="Link to Goal (optional)"
+                      {...field}
+                      disabled={isSubmitting}
+                    >
+                      <MenuItem value={0}>None</MenuItem>
+                      {goals.map((goal) => (
+                        <MenuItem key={goal.id} value={goal.id}>
+                          {goal.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+              </FormControl>
             )}
           </Box>
         </DialogContent>
@@ -876,34 +972,68 @@ function Transactions() {
               disabled={isSubmitting}
             />
 
-            <FormControl>
-              <InputLabel id="edit-category-label">Category</InputLabel>
-              <Controller
-                name="category_id"
-                control={control}
-                rules={{ required: true, min: 1 }}
-                render={({ field }) => (
-                  <Select
-                    labelId="edit-category-label"
-                    label="Category"
-                    {...field}
-                    disabled={isSubmitting || isLoadingCategories}
-                  >
-                    <MenuItem value={0}>Select a category</MenuItem>
-                    {categories.map((category) => (
-                      <MenuItem key={category.id} value={category.id}>
-                        {category.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-              />
-            </FormControl>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <FormControl sx={{ flex: 1 }}>
+                <InputLabel id="edit-category-label">Category</InputLabel>
+                <Controller
+                  name="category_id"
+                  control={control}
+                  rules={{ required: true, min: 1 }}
+                  render={({ field }) => (
+                    <Select
+                      labelId="edit-category-label"
+                      label="Category"
+                      {...field}
+                      disabled={isSubmitting || isLoadingCategories}
+                    >
+                      <MenuItem value={0}>Select a category</MenuItem>
+                      {categories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+              </FormControl>
+              <IconButton
+                title="Add new category"
+                onClick={() => { resetCat(); setNewCategoryDialogOpen(true) }}
+                sx={{ mt: 1 }}
+              >
+                <Add />
+              </IconButton>
+            </Box>
 
             {selectedCategory && (
               <Typography variant="body2" color="text.secondary">
                 Transaction type inferred from category: {selectedCategory.type}
               </Typography>
+            )}
+
+            {goals.length > 0 && (
+              <FormControl>
+                <InputLabel id="edit-goal-label">Link to Goal (optional)</InputLabel>
+                <Controller
+                  name="goal_id"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      labelId="edit-goal-label"
+                      label="Link to Goal (optional)"
+                      {...field}
+                      disabled={isSubmitting}
+                    >
+                      <MenuItem value={0}>None</MenuItem>
+                      {goals.map((goal) => (
+                        <MenuItem key={goal.id} value={goal.id}>
+                          {goal.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+              </FormControl>
             )}
           </Box>
         </DialogContent>
@@ -911,6 +1041,46 @@ function Transactions() {
           <Button onClick={() => { setEditDialogOpen(false); setEditingTransaction(null) }}>Cancel</Button>
           <Button type="submit" form="edit-transaction-form" variant="contained" disabled={isSubmitting || isLoadingCategories}>
             {isSubmitting ? 'Updating...' : 'Update transaction'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={newCategoryDialogOpen} onClose={() => setNewCategoryDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>New Category</DialogTitle>
+        <DialogContent>
+          <Box
+            component="form"
+            id="new-category-form"
+            onSubmit={handleSubmitCat(handleCreateCategory)}
+            sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}
+          >
+            <TextField
+              label="Name"
+              required
+              fullWidth
+              autoFocus
+              {...registerCat('name', { required: true })}
+              disabled={isCreatingCategory}
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Type</InputLabel>
+              <Controller
+                name="type"
+                control={controlCat}
+                render={({ field }) => (
+                  <Select {...field} label="Type" disabled={isCreatingCategory}>
+                    <MenuItem value="expense">Expense</MenuItem>
+                    <MenuItem value="income">Income</MenuItem>
+                  </Select>
+                )}
+              />
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewCategoryDialogOpen(false)}>Cancel</Button>
+          <Button type="submit" form="new-category-form" variant="contained" disabled={isCreatingCategory}>
+            {isCreatingCategory ? 'Creating…' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

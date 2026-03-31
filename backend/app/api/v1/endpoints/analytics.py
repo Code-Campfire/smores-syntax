@@ -9,33 +9,10 @@ from fastapi.responses import StreamingResponse
 from app import models
 from app.api.deps import CurrentUser, DbSession
 from app.core.logger_init import setup_logging
-from app.services.ml_service import compare_classifiers
 from app.services.report_service import generate_spending_report_pdf_bytes
 
 logger = setup_logging()
 router = APIRouter()
-
-
-@router.get("/ml-compare", status_code=status.HTTP_200_OK)
-def get_ml_compare(*, db: DbSession, current_user: CurrentUser):
-    """Compare Logistic Regression vs LinearSVM with RandomizedSearchCV tuning and K-fold CV.
-
-    Logs per-fold train_loss and test_loss to MLflow. Expect 20-60s depending on data size.
-    """
-    result = compare_classifiers(db, current_user.id)
-    if "error" in result:
-        logger.warning(f"User {current_user.id}: ml-compare skipped — {result['error']}")
-    else:
-        for clf_name, metrics in result.get("results", {}).items():
-            logger.info(
-                f"User {current_user.id}: [{clf_name}] "
-                f"train_loss={metrics['train_loss']:.4f}  "
-                f"test_loss={metrics['test_loss']:.4f}  "
-                f"f1_macro={metrics['test_f1_macro']:.4f}  "
-                f"tune_f1={metrics['tune_f1_macro']:.4f}"
-            )
-    return result
-
 
 @router.get("/category-distribution", status_code=status.HTTP_200_OK)
 def get_category_distribution(

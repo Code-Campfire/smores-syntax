@@ -108,7 +108,7 @@ function ResetPassword() {
                         PB
                     </Box>
                     <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                        Personal Budget Analyst
+                        Ledgr
                     </Typography>
                     <Typography sx={{ mb: 4, opacity: 0.9 }}>
                         Reset Password

@@ -41,9 +41,6 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS: bool = True
     MAIL_TIMEOUT: int = 30
 
-    # MLflow
-    MLFLOW_TRACKING_URI: str = "sqlite:////mlflow/mlflow.db"
-
     # Optional External APIs
     PLAID_CLIENT_ID: str | None = None
     PLAID_SECRET: str | None = None

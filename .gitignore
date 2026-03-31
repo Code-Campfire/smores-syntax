@@ -1,7 +1,11 @@
 # Environment files
 .env
 .env.local
+.env.prod
+backend/.env.prod
 !.env.example
+!.env.prod.example
+!backend/.env.prod.example
 
 # OS
 .DS_Store
